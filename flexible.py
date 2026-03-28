@@ -143,3 +143,32 @@ with col2:
         })
 
         st.download_button("📥 Download CSV", df.to_csv(index=False), "design.csv")
+
+import matplotlib.pyplot as plt
+
+def draw_pavement(D1, D2, D3):
+    fig, ax = plt.subplots(figsize=(4,6))
+
+    # เริ่มจากบนลงล่าง
+    y = 0
+
+    layers = [
+        ("Asphalt (AC)", D1, "#2E86C1"),
+        ("Base", D2, "#27AE60"),
+        ("Subbase", D3, "#A04000")
+    ]
+
+    for name, thickness, color in layers:
+        ax.bar(0, thickness, bottom=y)
+        ax.text(0, y + thickness/2,
+                f"{name}\n{thickness:.1f} in",
+                ha='center', va='center', color='white', fontsize=10)
+        y += thickness
+
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, y)
+    ax.set_xticks([])
+    ax.set_ylabel("Thickness (inch)")
+    ax.set_title("Pavement Structure")
+
+    return fig
