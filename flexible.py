@@ -2,125 +2,144 @@ import math
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="AASHTO Pavement Design", layout="centered")
+# ======================
+# PAGE CONFIG
+# ======================
+st.set_page_config(
+    page_title="Pavement Design",
+    page_icon="🚧",
+    layout="wide"
+)
 
-# ==============================
-# ฟังก์ชัน
-# ==============================
-def get_Zr(reliability):
-    table = {
-        50: 0.0,
-        75: -0.674,
-        85: -1.036,
-        90: -1.282,
-        95: -1.645,
-        99: -2.327
-    }
-    return table.get(reliability, -1.645)
+# ======================
+# CUSTOM CSS
+# ======================
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+}
+.main {
+    background-color: #0e1117;
+}
+h1, h2, h3 {
+    color: #ffffff;
+}
+.stMetric {
+    background-color: #1c1f26;
+    padding: 15px;
+    border-radius: 10px;
+}
+.card {
+    background-color: #1c1f26;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
+}
+</style>
+""", unsafe_allow_html=True)
 
-def calculate_SN(W18, Zr, So, delta_PSI, Mr):
-    SN = 3.0  
-    for i in range(1000):
+# ======================
+# FUNCTIONS
+# ======================
+def get_Zr(r):
+    return {
+        50: 0.0, 75: -0.674, 85: -1.036,
+        90: -1.282, 95: -1.645, 99: -2.327
+    }[r]
+
+def calculate_SN(W18, Zr, So, dPSI, Mr):
+    SN = 3.0
+    for _ in range(1000):
         logW18 = (
             Zr * So +
             9.36 * math.log10(SN + 1) -
             0.20 +
-            math.log10(delta_PSI / (4.2 - 1.5)) /
+            math.log10(dPSI / (4.2 - 1.5)) /
             (0.4 + (1094 / (SN + 1)**5.19)) +
             2.32 * math.log10(Mr) -
             8.07
         )
-
-        W18_calc = 10 ** logW18
-        error = W18 - W18_calc
-        SN += error / 1e7
-
-        if abs(error) < 1000:
-            break
-
+        W_calc = 10 ** logW18
+        SN += (W18 - W_calc) / 1e7
     return SN
 
-def calculate_layers(SN, a1, a2, a3, m2, m3):
-    D1 = SN * 0.4 / a1
-    D2 = SN * 0.3 / (a2 * m2)
-    D3 = SN * 0.3 / (a3 * m3)
-    return D1, D2, D3
+def layers(SN, a1, a2, a3, m2, m3):
+    return (
+        SN * 0.4 / a1,
+        SN * 0.3 / (a2*m2),
+        SN * 0.3 / (a3*m3)
+    )
 
 def inch_to_cm(x):
     return x * 2.54
 
-# ==============================
-# UI
-# ==============================
-st.title("🚧 AASHTO 1993 Pavement Design Tool")
-st.markdown("### Flexible Pavement (งานออกแบบถนนลาดยาง)")
+# ======================
+# SIDEBAR INPUT
+# ======================
+st.sidebar.title("⚙️ Input Parameters")
 
-# INPUT
-st.subheader("📥 Input Parameters")
+W18 = st.sidebar.number_input("Traffic (ESAL)", value=1e7)
+rel = st.sidebar.selectbox("Reliability (%)", [50,75,85,90,95,99], index=4)
+Zr = get_Zr(rel)
 
-W18 = st.number_input("Traffic (W18 - ESAL)", value=1e7, format="%.0f")
+So = st.sidebar.number_input("So", value=0.45)
+dPSI = st.sidebar.number_input("ΔPSI", value=1.7)
+Mr = st.sidebar.number_input("Mr (psi)", value=8000.0)
 
-reliability = st.selectbox("Reliability (%)", [50, 75, 85, 90, 95, 99], index=4)
-Zr = get_Zr(reliability)
+st.sidebar.markdown("---")
+st.sidebar.subheader("Layer Coefficients")
+a1 = st.sidebar.number_input("a1", value=0.44)
+a2 = st.sidebar.number_input("a2", value=0.14)
+a3 = st.sidebar.number_input("a3", value=0.11)
+m2 = st.sidebar.number_input("m2", value=1.0)
+m3 = st.sidebar.number_input("m3", value=1.0)
 
-So = st.number_input("Standard Deviation (So)", value=0.45)
-delta_PSI = st.number_input("ΔPSI", value=1.7)
-Mr = st.number_input("Subgrade Modulus (psi)", value=8000.0)
+# ======================
+# MAIN UI
+# ======================
+st.title("🚧 Pavement Design (AASHTO 1993)")
+st.markdown("### Flexible Pavement Analysis Tool")
 
-st.markdown("### Layer Coefficients")
-a1 = st.number_input("a1 (Asphalt)", value=0.44)
-a2 = st.number_input("a2 (Base)", value=0.14)
-a3 = st.number_input("a3 (Subbase)", value=0.11)
+col1, col2 = st.columns(2)
 
-m2 = st.number_input("m2 (Drainage Base)", value=1.0)
-m3 = st.number_input("m3 (Drainage Subbase)", value=1.0)
+# ======================
+# LEFT: INPUT SUMMARY
+# ======================
+with col1:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("📥 Project Input")
+    st.write(f"Traffic: {W18:,.0f} ESAL")
+    st.write(f"Reliability: {rel}% (Zr = {Zr})")
+    st.write(f"So: {So}")
+    st.write(f"ΔPSI: {dPSI}")
+    st.write(f"Mr: {Mr} psi")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ==============================
-# CALCULATE
-# ==============================
-if st.button("🚀 Calculate"):
-    SN = calculate_SN(W18, Zr, So, delta_PSI, Mr)
-    D1, D2, D3 = calculate_layers(SN, a1, a2, a3, m2, m3)
+# ======================
+# RIGHT: RESULT
+# ======================
+with col2:
+    if st.button("🚀 Run Design"):
+        SN = calculate_SN(W18, Zr, So, dPSI, Mr)
+        D1, D2, D3 = layers(SN, a1, a2, a3, m2, m3)
 
-    # แปลงหน่วย
-    D1_cm, D2_cm, D3_cm = inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("📊 Results")
 
-    st.success("✅ Calculation Complete")
+        st.metric("SN", f"{SN:.2f}")
 
-    # แสดงผล
-    st.subheader("📊 Results")
-    st.metric("Structural Number (SN)", f"{SN:.2f}")
+        st.metric("AC", f"{D1:.2f} in / {inch_to_cm(D1):.1f} cm")
+        st.metric("Base", f"{D2:.2f} in / {inch_to_cm(D2):.1f} cm")
+        st.metric("Subbase", f"{D3:.2f} in / {inch_to_cm(D3):.1f} cm")
 
-    st.write("### Thickness")
-    st.write(f"AC: {D1:.2f} in ({D1_cm:.1f} cm)")
-    st.write(f"Base: {D2:.2f} in ({D2_cm:.1f} cm)")
-    st.write(f"Subbase: {D3:.2f} in ({D3_cm:.1f} cm)")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Minimum check
-    st.subheader("⚠️ Minimum Thickness Check")
-    if D1_cm < 5:
-        st.warning("AC บางเกินไป (< 5 cm)")
-    if D2_cm < 10:
-        st.warning("Base บางเกินไป (< 10 cm)")
-    if D3_cm < 10:
-        st.warning("Subbase บางเกินไป (< 10 cm)")
+        # EXPORT
+        df = pd.DataFrame({
+            "Layer": ["AC","Base","Subbase"],
+            "inch": [D1,D2,D3],
+            "cm": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
+        })
 
-    # Export
-    df = pd.DataFrame({
-        "Layer": ["AC", "Base", "Subbase"],
-        "Thickness (in)": [D1, D2, D3],
-        "Thickness (cm)": [D1_cm, D2_cm, D3_cm]
-    })
-
-    st.download_button(
-        "📥 Download Results (CSV)",
-        df.to_csv(index=False),
-        file_name="pavement_design.csv",
-        mime="text/csv"
-    )
-
-# ==============================
-# FOOTER
-# ==============================
-st.markdown("---")
-st.caption("Developed for Civil Engineering - AASHTO 1993 Design")
+        st.download_button("📥 Download CSV", df.to_csv(index=False), "design.csv")
