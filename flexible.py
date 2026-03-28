@@ -1,33 +1,23 @@
 import math
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # ======================
 # PAGE CONFIG
 # ======================
-st.set_page_config(
-    page_title="Pavement Design",
-    page_icon="🚧",
-    layout="wide"
-)
+st.set_page_config(page_title="Pavement Design", layout="wide")
 
 # ======================
-# CUSTOM CSS
+# STYLE
 # ======================
 st.markdown("""
 <style>
-.main {
-    background-color: #0e1117;
-}
-h1, h2, h3 {
+.block {
+    border-radius: 10px;
+    padding: 10px;
     color: white;
-}
-.card {
-    background-color: #1c1f26;
-    padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 15px;
+    text-align: center;
+    font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -68,37 +58,33 @@ def inch_to_cm(x):
     return x * 2.54
 
 # ======================
-# DRAW PAVEMENT
+# DRAW (NO LIBRARY)
 # ======================
-def draw_pavement(D1, D2, D3):
-    fig, ax = plt.subplots(figsize=(4,6))
+def draw_layers_html(D1, D2, D3):
+    total = D1 + D2 + D3
 
-    y = 0
-    layers = [
-        ("Asphalt (AC)", D1, "#2E86C1"),
-        ("Base", D2, "#27AE60"),
-        ("Subbase", D3, "#A04000")
-    ]
+    def h(d):  # scale ความสูง
+        return int((d / total) * 300)
 
-    for name, thickness, color in layers:
-        ax.bar(0, thickness, bottom=y)
-        ax.text(0, y + thickness/2,
-                f"{name}\n{thickness:.1f} in",
-                ha='center', va='center', color='white')
-        y += thickness
-
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(0, y)
-    ax.set_xticks([])
-    ax.set_ylabel("Thickness (inch)")
-    ax.set_title("Pavement Structure")
-
-    return fig
+    html = f"""
+    <div style="width:200px; margin:auto;">
+        <div class="block" style="background:#2E86C1;height:{h(D1)}px;">
+            AC<br>{D1:.1f} in
+        </div>
+        <div class="block" style="background:#27AE60;height:{h(D2)}px;">
+            Base<br>{D2:.1f} in
+        </div>
+        <div class="block" style="background:#A04000;height:{h(D3)}px;">
+            Subbase<br>{D3:.1f} in
+        </div>
+    </div>
+    """
+    return html
 
 # ======================
 # SIDEBAR
 # ======================
-st.sidebar.title("⚙️ Input Parameters")
+st.sidebar.title("⚙️ Input")
 
 W18 = st.sidebar.number_input("Traffic (ESAL)", value=1e7)
 rel = st.sidebar.selectbox("Reliability (%)", [50,75,85,90,95,99], index=4)
@@ -109,7 +95,6 @@ dPSI = st.sidebar.number_input("ΔPSI", value=1.7)
 Mr = st.sidebar.number_input("Mr (psi)", value=8000.0)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Layer Coefficients")
 a1 = st.sidebar.number_input("a1", value=0.44)
 a2 = st.sidebar.number_input("a2", value=0.14)
 a3 = st.sidebar.number_input("a3", value=0.11)
@@ -120,51 +105,34 @@ m3 = st.sidebar.number_input("m3", value=1.0)
 # MAIN
 # ======================
 st.title("🚧 Pavement Design (AASHTO 1993)")
-st.markdown("### Flexible Pavement Analysis Tool")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("📥 Input Summary")
-    st.write(f"Traffic: {W18:,.0f} ESAL")
-    st.write(f"Reliability: {rel}% (Zr = {Zr})")
-    st.write(f"So: {So}")
-    st.write(f"ΔPSI: {dPSI}")
-    st.write(f"Mr: {Mr} psi")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.write(f"Traffic: {W18:,.0f}")
+    st.write(f"Reliability: {rel}%")
+    st.write(f"Mr: {Mr}")
 
 with col2:
-    if st.button("🚀 Run Design"):
+    if st.button("🚀 Calculate"):
         SN = calculate_SN(W18, Zr, So, dPSI, Mr)
         D1, D2, D3 = layers(SN, a1, a2, a3, m2, m3)
 
-        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("📊 Results")
-
-        st.metric("Structural Number (SN)", f"{SN:.2f}")
+        st.metric("SN", f"{SN:.2f}")
         st.metric("AC", f"{D1:.2f} in / {inch_to_cm(D1):.1f} cm")
         st.metric("Base", f"{D2:.2f} in / {inch_to_cm(D2):.1f} cm")
         st.metric("Subbase", f"{D3:.2f} in / {inch_to_cm(D3):.1f} cm")
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # รูปหน้าตัด
         st.subheader("🧱 Pavement Structure")
-        fig = draw_pavement(D1, D2, D3)
-        st.pyplot(fig)
+        st.markdown(draw_layers_html(D1, D2, D3), unsafe_allow_html=True)
 
         # Export
         df = pd.DataFrame({
             "Layer": ["AC","Base","Subbase"],
-            "Thickness (in)": [D1,D2,D3],
-            "Thickness (cm)": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
+            "inch": [D1,D2,D3],
+            "cm": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
         })
 
         st.download_button("📥 Download CSV", df.to_csv(index=False), "design.csv")
-
-# ======================
-# FOOTER
-# ======================
-st.markdown("---")
-st.caption("AASHTO 1993 Pavement Design Tool | Civil Engineering Project")
