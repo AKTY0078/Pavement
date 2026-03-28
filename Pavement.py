@@ -67,17 +67,28 @@ def calculate_rigid_AASHTO(W18, Zr, So, Sc, k, dPSI, J, Cd):
     return D
 
 # ======================
-# DRAW WITH SCALE 🔥
+# SCALE LOGIC 🔥
+# ======================
+def get_scale_step(total_cm):
+    if total_cm <= 20:
+        return 2
+    elif total_cm <= 50:
+        return 5
+    else:
+        return 10
+
+# ======================
+# DRAW FLEXIBLE
 # ======================
 def draw_flexible(D1, D2, D3):
     total = D1 + D2 + D3
     total_cm = inch_to_cm(total)
+    step = get_scale_step(total_cm)
 
     def h(d): return int((d/total)*300)
 
-    # scale ทุก 10 cm
     scale_marks = ""
-    for i in range(0, int(total_cm)+1, 10):
+    for i in range(0, int(total_cm)+step, step):
         pos = int((i / total_cm) * 300)
         scale_marks += f"""
         <div style="position:absolute; bottom:{pos}px; left:0; font-size:10px;">
@@ -88,55 +99,54 @@ def draw_flexible(D1, D2, D3):
     return f"""
     <div style="display:flex; justify-content:center;">
 
-        <!-- SCALE -->
         <div style="position:relative; width:60px; height:300px; color:white;">
             {scale_marks}
         </div>
 
-        <!-- STRUCTURE -->
         <div style="width:200px;
                     border-radius:12px;
                     overflow:hidden;
                     box-shadow:0 4px 15px rgba(0,0,0,0.5);">
 
-            <div style="
-                background: linear-gradient(135deg,#1f4e79,#2e86c1);
-                height:{h(D1)}px;
-                color:white;
-                display:flex;
-                justify-content:center;
-                align-items:center;">
+            <div style="background:linear-gradient(135deg,#1f4e79,#2e86c1);
+                        height:{h(D1)}px;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                        color:white;">
                 AC<br>{D1:.1f} in
             </div>
 
-            <div style="
-                background: linear-gradient(135deg,#1e8449,#52be80);
-                height:{h(D2)}px;
-                color:white;
-                display:flex;
-                justify-content:center;
-                align-items:center;">
+            <div style="background:linear-gradient(135deg,#1e8449,#52be80);
+                        height:{h(D2)}px;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                        color:white;">
                 Base<br>{D2:.1f} in
             </div>
 
-            <div style="
-                background: linear-gradient(135deg,#935116,#d68910);
-                height:{h(D3)}px;
-                color:white;
-                display:flex;
-                justify-content:center;
-                align-items:center;">
+            <div style="background:linear-gradient(135deg,#935116,#d68910);
+                        height:{h(D3)}px;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                        color:white;">
                 Subbase<br>{D3:.1f} in
             </div>
         </div>
     </div>
     """
 
+# ======================
+# DRAW RIGID
+# ======================
 def draw_rigid(D):
     total_cm = inch_to_cm(D)
+    step = get_scale_step(total_cm)
 
     scale_marks = ""
-    for i in range(0, int(total_cm)+1, 10):
+    for i in range(0, int(total_cm)+step, step):
         pos = int((i / total_cm) * 300)
         scale_marks += f"""
         <div style="position:absolute; bottom:{pos}px; left:0; font-size:10px;">
@@ -181,6 +191,7 @@ rel = st.sidebar.selectbox("Reliability (%)", [50,75,85,90,95,99], index=4)
 Zr = get_Zr(rel)
 So = st.sidebar.number_input("So", value=0.45)
 
+# -------- Flexible --------
 if pavement_type == "Flexible (Asphalt)":
     dPSI = st.sidebar.number_input("ΔPSI", value=1.7)
     Mr = st.sidebar.number_input("Mr (psi)", value=8000.0)
@@ -191,6 +202,7 @@ if pavement_type == "Flexible (Asphalt)":
     m2 = st.sidebar.number_input("m2", value=1.0)
     m3 = st.sidebar.number_input("m3", value=1.0)
 
+# -------- Rigid --------
 else:
     Sc = st.sidebar.number_input("Sc (psi)", value=650.0)
     k = st.sidebar.number_input("k (pci)", value=100.0)
