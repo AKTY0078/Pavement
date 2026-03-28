@@ -3,24 +3,9 @@ import streamlit as st
 import pandas as pd
 
 # ======================
-# PAGE CONFIG
+# CONFIG
 # ======================
 st.set_page_config(page_title="Pavement Design", layout="wide")
-
-# ======================
-# STYLE
-# ======================
-st.markdown("""
-<style>
-.block {
-    border-radius: 10px;
-    padding: 10px;
-    color: white;
-    text-align: center;
-    font-weight: bold;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ======================
 # FUNCTIONS
@@ -55,28 +40,44 @@ def layers(SN, a1, a2, a3, m2, m3):
         SN * 0.3 / (a3*m3)
     )
 
-# -------- Rigid --------
+# -------- Rigid (FIXED) --------
 def calculate_rigid_AASHTO(W18, Zr, So, Sc, k, dPSI, J, Cd):
     D = 8.0
-    for _ in range(1000):
-        term1 = Zr * So
-        term2 = 7.35 * math.log10(D + 1) - 0.06
-        term3 = math.log10(dPSI / (4.5 - 1.5))
-        term4 = 1 / (1 + (1.624e7 / (D + 1)**8.46))
-        term5 = (4.22 - 0.32 * J) * math.log10(Sc)
-        term6 = 0.75 * math.log10(k)
-        term7 = -8.0
 
-        logW18 = term1 + term2 + (term3 * term4) + term5 + term6 + term7
-        W_calc = 10 ** logW18
-        D += (W18 - W_calc) / 1e7
+    for _ in range(1000):
+        # 🔒 กันค่าพัง
+        if D < 1:
+            D = 1.0
+
+        psi_ratio = max(dPSI / (4.5 - 1.5), 0.01)
+
+        try:
+            term1 = Zr * So
+            term2 = 7.35 * math.log10(D + 1) - 0.06
+            term3 = math.log10(psi_ratio)
+            term4 = 1 / (1 + (1.624e7 / (D + 1)**8.46))
+            term5 = (4.22 - 0.32 * J) * math.log10(max(Sc, 1))
+            term6 = 0.75 * math.log10(max(k, 1))
+            term7 = -8.0
+
+            logW18 = term1 + term2 + (term3 * term4) + term5 + term6 + term7
+            W_calc = 10 ** logW18
+
+            error = W18 - W_calc
+
+            # 🔒 ลด step กันแกว่ง
+            D += error / 5e7
+
+        except:
+            D = 8.0
+
     return D
 
 def inch_to_cm(x):
     return x * 2.54
 
 # ======================
-# DRAW (NO LIB)
+# DRAW
 # ======================
 def draw_flexible(D1, D2, D3):
     total = D1 + D2 + D3
@@ -84,13 +85,13 @@ def draw_flexible(D1, D2, D3):
 
     return f"""
     <div style="width:200px;margin:auto;">
-        <div class="block" style="background:#2E86C1;height:{h(D1)}px;">
+        <div style="background:#2E86C1;height:{h(D1)}px;color:white;text-align:center;">
             AC<br>{D1:.1f} in
         </div>
-        <div class="block" style="background:#27AE60;height:{h(D2)}px;">
+        <div style="background:#27AE60;height:{h(D2)}px;color:white;text-align:center;">
             Base<br>{D2:.1f} in
         </div>
-        <div class="block" style="background:#A04000;height:{h(D3)}px;">
+        <div style="background:#A04000;height:{h(D3)}px;color:white;text-align:center;">
             Subbase<br>{D3:.1f} in
         </div>
     </div>
@@ -98,17 +99,11 @@ def draw_flexible(D1, D2, D3):
 
 def draw_rigid(D):
     return f"""
-    <div style="width:220px;margin:auto;">
-        <div style="background:#BDC3C7;height:220px;
-                    border-radius:10px;
-                    text-align:center;
-                    color:black;
-                    padding-top:90px;">
-            Concrete Slab<br>{D:.1f} in
+    <div style="width:200px;margin:auto;">
+        <div style="background:#BDC3C7;height:220px;text-align:center;padding-top:90px;">
+            Concrete<br>{D:.1f} in
         </div>
-        <div style="background:#7F8C8D;height:60px;
-                    text-align:center;
-                    color:white;">
+        <div style="background:#7F8C8D;height:60px;color:white;text-align:center;">
             Subgrade
         </div>
     </div>
@@ -130,19 +125,18 @@ Zr = get_Zr(rel)
 
 So = st.sidebar.number_input("So", value=0.45)
 
-# -------- Flexible input --------
+# -------- Flexible --------
 if pavement_type == "Flexible (Asphalt)":
     dPSI = st.sidebar.number_input("ΔPSI", value=1.7)
     Mr = st.sidebar.number_input("Mr (psi)", value=8000.0)
 
-    st.sidebar.markdown("---")
     a1 = st.sidebar.number_input("a1", value=0.44)
     a2 = st.sidebar.number_input("a2", value=0.14)
     a3 = st.sidebar.number_input("a3", value=0.11)
     m2 = st.sidebar.number_input("m2", value=1.0)
     m3 = st.sidebar.number_input("m3", value=1.0)
 
-# -------- Rigid input --------
+# -------- Rigid --------
 else:
     Sc = st.sidebar.number_input("Sc (psi)", value=650.0)
     k = st.sidebar.number_input("k (pci)", value=100.0)
@@ -162,42 +156,17 @@ if st.button("🚀 Calculate"):
         SN = calculate_SN(W18, Zr, So, dPSI, Mr)
         D1, D2, D3 = layers(SN, a1, a2, a3, m2, m3)
 
-        st.subheader("📊 Flexible Pavement")
         st.metric("SN", f"{SN:.2f}")
         st.metric("AC", f"{D1:.2f} in / {inch_to_cm(D1):.1f} cm")
         st.metric("Base", f"{D2:.2f} in / {inch_to_cm(D2):.1f} cm")
         st.metric("Subbase", f"{D3:.2f} in / {inch_to_cm(D3):.1f} cm")
 
-        st.subheader("🧱 Structure")
         st.markdown(draw_flexible(D1, D2, D3), unsafe_allow_html=True)
-
-        df = pd.DataFrame({
-            "Layer": ["AC","Base","Subbase"],
-            "inch": [D1,D2,D3],
-            "cm": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
-        })
 
     # -------- Rigid --------
     else:
         D = calculate_rigid_AASHTO(W18, Zr, So, Sc, k, dPSI, J, Cd)
 
-        st.subheader("📊 Rigid Pavement")
         st.metric("Concrete Thickness", f"{D:.2f} in / {inch_to_cm(D):.1f} cm")
 
-        st.subheader("🧱 Structure")
         st.markdown(draw_rigid(D), unsafe_allow_html=True)
-
-        df = pd.DataFrame({
-            "Layer": ["Concrete"],
-            "inch": [D],
-            "cm": [inch_to_cm(D)]
-        })
-
-    # -------- Export --------
-    st.download_button("📥 Download CSV", df.to_csv(index=False), "design.csv")
-
-# ======================
-# FOOTER
-# ======================
-st.markdown("---")
-st.caption("AASHTO 1993 Flexible & Rigid Pavement Design Tool")
