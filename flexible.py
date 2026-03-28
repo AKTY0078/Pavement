@@ -1,6 +1,7 @@
 import math
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # ======================
 # PAGE CONFIG
@@ -16,25 +17,17 @@ st.set_page_config(
 # ======================
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
 .main {
     background-color: #0e1117;
 }
 h1, h2, h3 {
-    color: #ffffff;
-}
-.stMetric {
-    background-color: #1c1f26;
-    padding: 15px;
-    border-radius: 10px;
+    color: white;
 }
 .card {
     background-color: #1c1f26;
     padding: 20px;
     border-radius: 15px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.5);
+    margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -75,7 +68,35 @@ def inch_to_cm(x):
     return x * 2.54
 
 # ======================
-# SIDEBAR INPUT
+# DRAW PAVEMENT
+# ======================
+def draw_pavement(D1, D2, D3):
+    fig, ax = plt.subplots(figsize=(4,6))
+
+    y = 0
+    layers = [
+        ("Asphalt (AC)", D1, "#2E86C1"),
+        ("Base", D2, "#27AE60"),
+        ("Subbase", D3, "#A04000")
+    ]
+
+    for name, thickness, color in layers:
+        ax.bar(0, thickness, bottom=y)
+        ax.text(0, y + thickness/2,
+                f"{name}\n{thickness:.1f} in",
+                ha='center', va='center', color='white')
+        y += thickness
+
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, y)
+    ax.set_xticks([])
+    ax.set_ylabel("Thickness (inch)")
+    ax.set_title("Pavement Structure")
+
+    return fig
+
+# ======================
+# SIDEBAR
 # ======================
 st.sidebar.title("⚙️ Input Parameters")
 
@@ -96,19 +117,16 @@ m2 = st.sidebar.number_input("m2", value=1.0)
 m3 = st.sidebar.number_input("m3", value=1.0)
 
 # ======================
-# MAIN UI
+# MAIN
 # ======================
 st.title("🚧 Pavement Design (AASHTO 1993)")
 st.markdown("### Flexible Pavement Analysis Tool")
 
 col1, col2 = st.columns(2)
 
-# ======================
-# LEFT: INPUT SUMMARY
-# ======================
 with col1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("📥 Project Input")
+    st.subheader("📥 Input Summary")
     st.write(f"Traffic: {W18:,.0f} ESAL")
     st.write(f"Reliability: {rel}% (Zr = {Zr})")
     st.write(f"So: {So}")
@@ -116,9 +134,6 @@ with col1:
     st.write(f"Mr: {Mr} psi")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ======================
-# RIGHT: RESULT
-# ======================
 with col2:
     if st.button("🚀 Run Design"):
         SN = calculate_SN(W18, Zr, So, dPSI, Mr)
@@ -127,48 +142,29 @@ with col2:
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("📊 Results")
 
-        st.metric("SN", f"{SN:.2f}")
-
+        st.metric("Structural Number (SN)", f"{SN:.2f}")
         st.metric("AC", f"{D1:.2f} in / {inch_to_cm(D1):.1f} cm")
         st.metric("Base", f"{D2:.2f} in / {inch_to_cm(D2):.1f} cm")
         st.metric("Subbase", f"{D3:.2f} in / {inch_to_cm(D3):.1f} cm")
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # EXPORT
+        # รูปหน้าตัด
+        st.subheader("🧱 Pavement Structure")
+        fig = draw_pavement(D1, D2, D3)
+        st.pyplot(fig)
+
+        # Export
         df = pd.DataFrame({
             "Layer": ["AC","Base","Subbase"],
-            "inch": [D1,D2,D3],
-            "cm": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
+            "Thickness (in)": [D1,D2,D3],
+            "Thickness (cm)": [inch_to_cm(D1), inch_to_cm(D2), inch_to_cm(D3)]
         })
 
         st.download_button("📥 Download CSV", df.to_csv(index=False), "design.csv")
 
-import matplotlib.pyplot as plt
-
-def draw_pavement(D1, D2, D3):
-    fig, ax = plt.subplots(figsize=(4,6))
-
-    # เริ่มจากบนลงล่าง
-    y = 0
-
-    layers = [
-        ("Asphalt (AC)", D1, "#2E86C1"),
-        ("Base", D2, "#27AE60"),
-        ("Subbase", D3, "#A04000")
-    ]
-
-    for name, thickness, color in layers:
-        ax.bar(0, thickness, bottom=y)
-        ax.text(0, y + thickness/2,
-                f"{name}\n{thickness:.1f} in",
-                ha='center', va='center', color='white', fontsize=10)
-        y += thickness
-
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(0, y)
-    ax.set_xticks([])
-    ax.set_ylabel("Thickness (inch)")
-    ax.set_title("Pavement Structure")
-
-    return fig
+# ======================
+# FOOTER
+# ======================
+st.markdown("---")
+st.caption("AASHTO 1993 Pavement Design Tool | Civil Engineering Project")
